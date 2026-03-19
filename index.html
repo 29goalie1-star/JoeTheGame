@@ -595,8 +595,17 @@
                 if (keysPressed.current['d']) { nextX += strafeX; nextY += strafeY; }
 
                 const isWalkable = (x, y) => {
-                    const tile = worldMap[Math.floor(y)][Math.floor(x)];
-                    return tile === 0 || tile === 5;
+                    const radius = 0.2;
+                    for (let ox = -radius; ox <= radius; ox += radius * 2) {
+                        for (let oy = -radius; oy <= radius; oy += radius * 2) {
+                            const tx = Math.floor(x + ox);
+                            const ty = Math.floor(y + oy);
+                            if (tx < 0 || tx >= MAP_SIZE || ty < 0 || ty >= MAP_SIZE) return false;
+                            const tile = worldMap[ty][tx];
+                            if (tile !== 0 && tile !== 5) return false;
+                        }
+                    }
+                    return true;
                 };
 
                 if (isWalkable(nextX, nextY)) {
@@ -628,8 +637,18 @@
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
                     if (dist > 0.1) {
-                        chat.current.x += (dx / dist) * config.chatSpeed;
-                        chat.current.y += (dy / dist) * config.chatSpeed;
+                        const nextChatX = chat.current.x + (dx / dist) * config.chatSpeed;
+                        const nextChatY = chat.current.y + (dy / dist) * config.chatSpeed;
+                        
+                        // Simple collision for chat entity
+                        if (isWalkable(nextChatX, nextChatY)) {
+                            chat.current.x = nextChatX;
+                            chat.current.y = nextChatY;
+                        } else if (isWalkable(nextChatX, chat.current.y)) {
+                            chat.current.x = nextChatX;
+                        } else if (isWalkable(chat.current.x, nextChatY)) {
+                            chat.current.y = nextChatY;
+                        }
                     }
 
                     if (dist < 0.4) {
@@ -677,6 +696,7 @@
 
                 const numRays = width;
                 const stepAngle = FOV / numRays;
+                const zBuffer = new Float32Array(numRays);
 
                 for (let i = 0; i < numRays; i++) {
                     const rayAngle = player.current.dir - FOV / 2 + i * stepAngle;
@@ -738,6 +758,8 @@
                     const fB = (battery > 0 && flashlightOn) ? 15 * floorBrightness : 0;
                     ctx.fillStyle = `rgb(${fR}, ${fG}, ${fB})`;
                     ctx.fillRect(i, floor, 1, height - floor);
+
+                    zBuffer[i] = distance;
                 }
 
                 const renderSprite = (x, y, color, size, isChat = false) => {
@@ -754,6 +776,18 @@
                         const spriteHeight = height / dist * size;
                         const spriteWidth = spriteHeight;
                         
+                        // Z-Buffer check: only render if sprite is closer than the wall at this screen column
+                        const ix = Math.floor(screenX);
+                        const leftIx = Math.floor(screenX - spriteWidth / 4);
+                        const rightIx = Math.floor(screenX + spriteWidth / 4);
+                        
+                        let visible = false;
+                        if (ix >= 0 && ix < width && zBuffer[ix] > dist) visible = true;
+                        else if (leftIx >= 0 && leftIx < width && zBuffer[leftIx] > dist) visible = true;
+                        else if (rightIx >= 0 && rightIx < width && zBuffer[rightIx] > dist) visible = true;
+                        
+                        if (!visible) return;
+
                         if (battery > 0 && flashlightOn) {
                             const brightness = Math.max(0, 1.2 - dist / 20);
                             ctx.globalAlpha = Math.min(1, brightness * 1.5);
@@ -761,23 +795,71 @@
                             ctx.fillRect(screenX - spriteWidth / 2, height / 2 - spriteHeight / 2, spriteWidth, spriteHeight);
                             
                             if (isChat) {
-                                const xPos = screenX - spriteWidth / 2;
-                                const yPos = height / 2 - spriteHeight / 2;
+                                const xPos = screenX;
+                                const yPos = height / 2;
+                                const time = Date.now() / 1000;
 
-                                // Shifting static body
-                                ctx.fillStyle = `rgba(${150 + Math.random() * 105}, 0, 0, ${0.4 + Math.random() * 0.4})`;
-                                ctx.fillRect(xPos, yPos, spriteWidth, spriteHeight);
+                                // Tall, spindly shadowy body
+                                ctx.save();
+                                ctx.globalAlpha = Math.min(1, brightness * 2);
                                 
-                                // Glitchy static particles
-                                for(let j=0; j<15; j++) {
-                                    ctx.fillStyle = Math.random() > 0.5 ? '#ff0000' : '#000000';
+                                // Main torso (tall and thin)
+                                ctx.fillStyle = '#000000';
+                                const torsoWidth = spriteWidth * 0.4;
+                                const torsoHeight = spriteHeight * 2.5;
+                                ctx.fillRect(xPos - torsoWidth / 2, yPos - torsoHeight / 2, torsoWidth, torsoHeight);
+                                
+                                // Static noise inside body
+                                for(let j=0; j<30; j++) {
+                                    ctx.fillStyle = Math.random() > 0.5 ? '#220000' : '#000000';
                                     ctx.fillRect(
-                                        xPos + Math.random() * spriteWidth,
-                                        yPos + Math.random() * spriteHeight,
-                                        Math.random() * 4,
-                                        Math.random() * 4
+                                        xPos - torsoWidth/2 + Math.random() * torsoWidth,
+                                        yPos - torsoHeight/2 + Math.random() * torsoHeight,
+                                        Math.random() * 3,
+                                        Math.random() * 3
                                     );
                                 }
+
+                                // Twitching spindly limbs
+                                ctx.strokeStyle = '#000000';
+                                ctx.lineWidth = 3;
+                                const limbCount = 4;
+                                for(let j=0; j<limbCount; j++) {
+                                    const side = j < 2 ? -1 : 1;
+                                    const limbY = yPos - torsoHeight/4 + (j % 2) * (torsoHeight/2);
+                                    
+                                    ctx.beginPath();
+                                    ctx.moveTo(xPos + (side * torsoWidth/2), limbY);
+                                    
+                                    // Elbow/Joint with twitch
+                                    const twitchX = Math.sin(time * 20 + j) * 10;
+                                    const twitchY = Math.cos(time * 15 + j) * 10;
+                                    const elbowX = xPos + (side * spriteWidth * 0.8) + twitchX;
+                                    const elbowY = limbY - (spriteHeight * 0.3) + twitchY;
+                                    
+                                    ctx.lineTo(elbowX, elbowY);
+                                    
+                                    // Hand/End of limb
+                                    const handX = elbowX + (side * spriteWidth * 0.4) + Math.sin(time * 25) * 5;
+                                    const handY = elbowY + (spriteHeight * 0.5) + Math.cos(time * 30) * 5;
+                                    ctx.lineTo(handX, handY);
+                                    ctx.stroke();
+                                }
+
+                                // Head area glow
+                                const headY = yPos - torsoHeight/2;
+                                const headGlow = ctx.createRadialGradient(xPos, headY, 0, xPos, headY, spriteWidth * 0.5);
+                                headGlow.addColorStop(0, 'rgba(255, 0, 0, 0.3)');
+                                headGlow.addColorStop(1, 'transparent');
+                                ctx.fillStyle = headGlow;
+                                ctx.beginPath();
+                                ctx.arc(xPos, headY, spriteWidth * 0.5, 0, Math.PI * 2);
+                                ctx.fill();
+
+                                ctx.restore();
+                            } else {
+                                ctx.fillStyle = color;
+                                ctx.fillRect(screenX - spriteWidth / 2, height / 2 - spriteHeight / 2, spriteWidth, spriteHeight);
                             }
                             ctx.globalAlpha = 1;
                         }
@@ -785,48 +867,50 @@
                         // Eyes and whispers are visible even in dark if close enough
                         if (isChat) {
                             const time = Date.now() / 1000;
-                            const xPos = screenX - spriteWidth / 2;
-                            const yPos = height / 2 - spriteHeight / 2;
+                            const xPos = screenX;
+                            const yPos = height / 2;
                             const glowAlpha = Math.max(0, 1 - dist / 12);
+                            const torsoHeight = spriteHeight * 2.5;
 
                             if (glowAlpha > 0) {
                                 ctx.save();
                                 ctx.globalAlpha = glowAlpha;
                                 
-                                // Many random eyes
-                                const eyeCount = 8 + Math.floor(Math.sin(time * 2) * 4 + 4);
+                                // Many random eyes clustered near the "head"
+                                const headY = yPos - torsoHeight/2;
+                                const eyeCount = 12 + Math.floor(Math.sin(time * 2) * 6 + 6);
                                 for (let j = 0; j < eyeCount; j++) {
-                                    const offsetX = (Math.sin(time * (j + 1)) * 0.4) * spriteWidth;
-                                    const offsetY = (Math.cos(time * (j + 1.5)) * 0.4) * spriteHeight;
-                                    const eyeSize = (0.05 + Math.random() * 0.1) * spriteWidth;
+                                    const offsetX = (Math.sin(time * (j + 1)) * 0.3) * spriteWidth;
+                                    const offsetY = (Math.cos(time * (j + 1.5)) * 0.3) * spriteWidth;
+                                    const eyeSize = (0.04 + Math.random() * 0.08) * spriteWidth;
                                     
                                     // Pulsing glow
                                     const pulse = 0.8 + Math.sin(time * 5 + j) * 0.2;
                                     
                                     ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
                                     ctx.beginPath();
-                                    ctx.ellipse(screenX + offsetX, height/2 + offsetY, eyeSize, eyeSize * 0.6, 0, 0, Math.PI * 2);
+                                    ctx.ellipse(xPos + offsetX, headY + offsetY, eyeSize, eyeSize * 0.6, 0, 0, Math.PI * 2);
                                     ctx.fill();
                                     
                                     ctx.fillStyle = `rgba(255, 0, 0, ${pulse})`;
                                     ctx.beginPath();
-                                    ctx.arc(screenX + offsetX + (Math.random()-0.5)*2, height/2 + offsetY + (Math.random()-0.5)*2, eyeSize * 0.4, 0, Math.PI * 2);
+                                    ctx.arc(xPos + offsetX + (Math.random()-0.5)*2, headY + offsetY + (Math.random()-0.5)*2, eyeSize * 0.4, 0, Math.PI * 2);
                                     ctx.fill();
                                 }
 
                                 // Floating whispers
-                                if (dist < 4) {
-                                    const whispers = ["WATCHING", "HUNGRY", "JOE", "VOID", "DIE", "STAY"];
-                                    ctx.font = 'bold 12px monospace';
+                                if (dist < 5) {
+                                    const whispers = ["I SEE YOU", "HUNGRY", "JOE IS HERE", "VOID CALLS", "DIE", "STAY FOREVER", "THEY ARE WATCHING", "NO ESCAPE"];
+                                    ctx.font = 'bold 14px monospace';
                                     ctx.fillStyle = 'rgba(255, 0, 0, 1)';
-                                    const whisper = whispers[Math.floor(time % whispers.length)];
-                                    ctx.fillText(whisper, xPos + Math.sin(time*10)*10, yPos - 10 + Math.cos(time*5)*5);
+                                    const whisper = whispers[Math.floor((time * 2) % whispers.length)];
+                                    ctx.fillText(whisper, xPos - 50 + Math.sin(time*10)*15, headY - 40 + Math.cos(time*5)*10);
                                 }
 
-                                // Occasional big red flash (only if flashlight is on for extra effect)
-                                if (Math.random() > 0.98 && (battery > 0 && flashlightOn)) {
-                                    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-                                    ctx.fillRect(xPos - spriteWidth/2, yPos - spriteHeight/2, spriteWidth * 2, spriteHeight * 2);
+                                // Occasional big red flash
+                                if (Math.random() > 0.97) {
+                                    ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+                                    ctx.fillRect(0, 0, width, height);
                                 }
                                 ctx.restore();
                             }
@@ -851,6 +935,24 @@
                         ctx.fillRect(x, y, s, s);
                     }
                     ctx.restore();
+                }
+
+                // Proximity pulse (Heartbeat effect)
+                if (staticIntensity > 0.5) {
+                    const time = Date.now() / 1000;
+                    const pulse = Math.sin(time * 10) * 0.5 + 0.5;
+                    ctx.save();
+                    ctx.globalAlpha = (staticIntensity - 0.5) * 0.4 * pulse;
+                    ctx.fillStyle = '#450a0a';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.restore();
+                    
+                    // Screen shake
+                    if (staticIntensity > 0.8) {
+                        const shakeX = (Math.random() - 0.5) * 20 * (staticIntensity - 0.8);
+                        const shakeY = (Math.random() - 0.5) * 20 * (staticIntensity - 0.8);
+                        ctx.translate(shakeX, shakeY);
+                    }
                 }
 
             }, [tasks, battery, worldMap, flashlightOn, canvasSize, staticIntensity]);
@@ -1063,52 +1165,53 @@
                                 <motion.div 
                                     initial={{ scale: 0.1, opacity: 0, rotate: 45 }} 
                                     animate={{ 
-                                        scale: [1, 4, 3.8, 4.5], 
+                                        scale: [1, 5, 4.5, 6], 
                                         opacity: [0, 1, 0.9, 1], 
-                                        rotate: [45, 0, -5, 5, 0],
-                                        x: [0, -10, 10, -5, 5, 0],
-                                        y: [0, 10, -10, 5, -5, 0],
-                                        backgroundColor: ['#450a0a', '#600a0a', '#450a0a', '#000000']
+                                        rotate: [45, 0, -10, 10, 0],
+                                        x: [0, -30, 30, -15, 15, 0],
+                                        y: [0, 30, -30, 15, -15, 0],
+                                        backgroundColor: ['#000000', '#450a0a', '#000000', '#600a0a', '#000000']
                                     }}
-                                    transition={{ duration: 0.5, times: [0, 0.3, 0.7, 1], ease: "easeOut" }}
+                                    transition={{ duration: 0.5, times: [0, 0.2, 0.5, 0.8, 1], ease: "easeOut" }}
                                     className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden"
                                 >
-                                    <div className="relative scale-150">
-                                        <Skull className="w-64 h-64 text-white drop-shadow-[0_0_50px_rgba(255,0,0,0.8)]" />
+                                    <div className="relative scale-100">
+                                        <Skull className="w-48 h-48 text-white drop-shadow-[0_0_60px_rgba(255,0,0,1)]" />
                                         <div className="absolute inset-0 flex items-center justify-center">
-                                            <Eye className="w-32 h-32 text-red-600 animate-ping" />
+                                            <Eye className="w-24 h-24 text-red-600 animate-ping" />
                                         </div>
-                                        {/* Noise overlay */}
+                                        {/* Intense Noise overlay */}
                                         <motion.div 
-                                            animate={{ opacity: [0.1, 0.4, 0.2, 0.5] }}
-                                            transition={{ repeat: Infinity, duration: 0.05 }}
-                                            className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-30"
+                                            animate={{ opacity: [0.3, 0.8, 0.5, 0.9] }}
+                                            transition={{ repeat: Infinity, duration: 0.03 }}
+                                            className="absolute inset-0 pointer-events-none mix-blend-overlay"
                                             style={{
-                                                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
+                                                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
                                             }}
                                         />
                                         {/* Glitch lines */}
                                         <motion.div 
-                                            animate={{ opacity: [0, 1, 0], x: [-200, 200] }}
-                                            transition={{ repeat: Infinity, duration: 0.05 }}
-                                            className="absolute top-1/4 left-0 w-full h-2 bg-white/40"
+                                            animate={{ opacity: [0, 1, 0], x: [-400, 400] }}
+                                            transition={{ repeat: Infinity, duration: 0.04 }}
+                                            className="absolute top-1/4 left-0 w-full h-4 bg-white/60"
                                         />
                                         <motion.div 
-                                            animate={{ opacity: [0, 1, 0], x: [200, -200] }}
-                                            transition={{ repeat: Infinity, duration: 0.07 }}
-                                            className="absolute top-3/4 left-0 w-full h-4 bg-red-500/40"
+                                            animate={{ opacity: [0, 1, 0], x: [400, -400] }}
+                                            transition={{ repeat: Infinity, duration: 0.06 }}
+                                            className="absolute top-3/4 left-0 w-full h-8 bg-red-500/60"
                                         />
                                     </div>
                                     <motion.div 
                                         animate={{ 
-                                            scale: [1, 1.3, 1], 
-                                            opacity: [1, 0.7, 1],
-                                            skewX: [0, 20, -20, 0]
+                                            scale: [1, 1.5, 1], 
+                                            opacity: [1, 0.5, 1],
+                                            skewX: [0, 30, -30, 0],
+                                            color: ['#ffffff', '#ff0000', '#ffffff']
                                         }}
-                                        transition={{ repeat: Infinity, duration: 0.08 }}
-                                        className="mt-16 text-2xl md:text-4xl font-black text-white uppercase tracking-tighter italic drop-shadow-[0_0_20px_rgba(255,0,0,1)]"
+                                        transition={{ repeat: Infinity, duration: 0.05 }}
+                                        className="mt-12 text-2xl md:text-5xl font-black uppercase tracking-tighter italic drop-shadow-[0_0_30px_rgba(255,0,0,1)]"
                                     >
-                                        YOU ARE CONSUMED
+                                        VOID CONSUMED YOU
                                     </motion.div>
                                 </motion.div>
                             )}
@@ -1118,9 +1221,9 @@
                                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                                     className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center text-center p-8 z-30"
                                 >
-                                    <h2 className="text-2xl md:text-3xl font-black mb-4 text-red-600 uppercase">Shift Terminated</h2>
-                                    <p className="text-zinc-400 mb-8">You are now part of the stream. Forever.</p>
-                                    <button onClick={() => startGame(1)} className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-full transition-all flex items-center gap-2"><RefreshCw className="w-5 h-5" />RETRY RITUAL</button>
+                                    <h2 className="text-lg md:text-xl font-black mb-3 text-red-600 uppercase">Shift Terminated</h2>
+                                    <p className="text-zinc-400 mb-6 text-xs md:text-sm">You are now part of the stream. Forever.</p>
+                                    <button onClick={() => startGame(1)} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-full transition-all flex items-center gap-1.5 text-xs"><RefreshCw className="w-3.5 h-3.5" />RETRY RITUAL</button>
                                 </motion.div>
                             )}
 
@@ -1129,9 +1232,9 @@
                                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                                     className="absolute inset-0 bg-emerald-950/90 flex flex-col items-center justify-center text-center p-8 z-30"
                                 >
-                                    <h2 className="text-7xl font-black mb-4 text-emerald-400 uppercase italic">Shift Escaped</h2>
-                                    <p className="text-zinc-200 mb-8 text-xl">The tether holds. You escape the gas station... for now.</p>
-                                    <button onClick={() => startGame(1)} className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-full transition-all flex items-center gap-2"><Play className="w-5 h-5" />PLAY AGAIN</button>
+                                    <h2 className="text-4xl md:text-7xl font-black mb-4 text-emerald-400 uppercase italic">Shift Escaped</h2>
+                                    <p className="text-zinc-200 mb-6 text-sm md:text-base">The tether holds. You escape the gas station... for now.</p>
+                                    <button onClick={() => startGame(1)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-full transition-all flex items-center gap-1.5 text-xs"><Play className="w-3.5 h-3.5" />PLAY AGAIN</button>
                                 </motion.div>
                             )}
                         </AnimatePresence>
