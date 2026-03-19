@@ -351,7 +351,7 @@
 
         const LEVELS = {
             1: {
-                chatSpeed: 0.02,
+                chatSpeed: 0.05,
                 batteryDrain: 0.015,
                 map: INITIAL_WORLD_MAP,
                 tasks: [
@@ -361,7 +361,7 @@
                 ]
             },
             2: {
-                chatSpeed: 0.03,
+                chatSpeed: 0.07,
                 batteryDrain: 0.025,
                 map: LEVEL_2_MAP,
                 tasks: [
@@ -372,7 +372,7 @@
                 ]
             },
             3: {
-                chatSpeed: 0.045,
+                chatSpeed: 0.1,
                 batteryDrain: 0.04,
                 map: INITIAL_WORLD_MAP,
                 tasks: [
@@ -397,7 +397,14 @@
             const [showJumpscare, setShowJumpscare] = useState(false);
             const [loreIndex, setLoreIndex] = useState(0);
             const [isLocked, setIsLocked] = useState(false);
+            const [spawnGracePeriod, setSpawnGracePeriod] = useState(0);
             const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+            const [chatMessages, setChatMessages] = useState([
+                { id: 1, user: 'System', text: 'Stream Started. 1 Viewer watching.', type: 'system' }
+            ]);
+            const [staticIntensity, setStaticIntensity] = useState(0);
+            const [glitchActive, setGlitchActive] = useState(false);
+            const [viewers, setViewers] = useState(666);
 
             const canvasRef = useRef(null);
             const containerRef = useRef(null);
@@ -414,12 +421,15 @@
                 return () => window.removeEventListener('resize', handleResize);
             }, []);
 
-            const getRandomWalkablePosition = (map) => {
-                let x, y;
+            const getRandomWalkablePosition = (map, playerX = 12, playerY = 12, minDistance = 10) => {
+                let x, y, dist;
+                let attempts = 0;
                 do {
                     x = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
                     y = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
-                } while (map[y][x] !== 0);
+                    dist = Math.sqrt((x - playerX)**2 + (y - playerY)**2);
+                    attempts++;
+                } while ((map[y][x] !== 0 || dist < minDistance) && attempts < 100);
                 return { x, y };
             };
 
@@ -433,7 +443,9 @@
                 setWorldMap(newMap);
                 setTasks(config.tasks.map(t => ({ ...t, completed: false })));
                 player.current = { x: 12, y: 12, dir: 0 };
-                chat.current = getRandomWalkablePosition(newMap);
+                chat.current = getRandomWalkablePosition(newMap, 12, 12, 10);
+                setSpawnGracePeriod(180); // 3 seconds at ~60fps
+                setChatMessages([{ id: Date.now(), user: 'System', text: `Level ${startLevel} Ritual Initiated. Prepare yourself.`, type: 'system' }]);
             };
 
             const nextLevel = () => {
@@ -492,6 +504,80 @@
                 return () => document.removeEventListener('pointerlockchange', lockChange);
             }, []);
 
+            const batteryRef = useRef(battery);
+            const tasksRef = useRef(tasks);
+
+            useEffect(() => { batteryRef.current = battery; }, [battery]);
+            useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+
+            // Separate effect for chat messages to avoid interval reset on every frame
+            useEffect(() => {
+                if (gameState !== 'PLAYING') return;
+                console.log("Chat interval started");
+
+                const scaryUsers = ['X_Void_X', 'StaticWatcher', 'User_666', 'The_Eye', 'Glitch_Boi', 'Not_Joe', 'Behind_You', 'Lurker', 'Red_Static'];
+                const genericMessages = [
+                    "I see you.",
+                    "Don't look back.",
+                    "The battery is dying.",
+                    "Joe is hungry.",
+                    "Why are you still here?",
+                    "It's cold in there.",
+                    "Look at the camera.",
+                    "We are watching.",
+                    "Finish the ritual.",
+                    "He's right behind the shelf.",
+                    "I can hear your breathing.",
+                    "The static is calling.",
+                    "Don't let the light die.",
+                    "Is that a shadow?",
+                    "Run.",
+                    "Too slow.",
+                    "We love the content.",
+                    "More blood.",
+                    "The ritual requires more."
+                ];
+
+                const chatInterval = setInterval(() => {
+                    const config = LEVELS[level];
+                    if (Math.random() < config.chatSpeed * 15) {
+                        const user = scaryUsers[Math.floor(Math.random() * scaryUsers.length)];
+                        let text = genericMessages[Math.floor(Math.random() * genericMessages.length)];
+                        
+                        // Contextual messages using refs
+                        if (batteryRef.current < 20) text = "THE LIGHT IS FADING. GOOD.";
+                        if (tasksRef.current.filter(t => t.completed).length === tasksRef.current.length - 1) text = "ALMOST DONE. BUT NOT QUITE.";
+
+                        setChatMessages(prev => {
+                            const newMessage = {
+                                id: Date.now(),
+                                user,
+                                text,
+                                type: Math.random() > 0.8 ? 'glitch' : 'normal'
+                            };
+                            return [...prev.slice(-8), newMessage];
+                        });
+                    }
+                }, 1000);
+
+                return () => clearInterval(chatInterval);
+            }, [gameState, level]);
+
+            useEffect(() => {
+                if (gameState !== 'PLAYING') return;
+                
+                const glitchTimer = setInterval(() => {
+                    if (Math.random() > 0.95) {
+                        setGlitchActive(true);
+                        setTimeout(() => setGlitchActive(false), 100 + Math.random() * 200);
+                    }
+                    // Fluctuating viewers
+                    setViewers(prev => Math.max(1, prev + Math.floor(Math.random() * 21) - 10));
+                }, 2000);
+                
+                return () => clearInterval(glitchTimer);
+            }, [gameState]);
+
             const update = useCallback(() => {
                 if (gameState !== 'PLAYING') return;
 
@@ -535,23 +621,28 @@
                 }
 
                 const config = LEVELS[level];
-                const dx = player.current.x - chat.current.x;
-                const dy = player.current.y - chat.current.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
                 
-                if (dist > 0.1) {
-                    chat.current.x += (dx / dist) * config.chatSpeed;
-                    chat.current.y += (dy / dist) * config.chatSpeed;
-                }
+                if (spawnGracePeriod <= 0) {
+                    const dx = player.current.x - chat.current.x;
+                    const dy = player.current.y - chat.current.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist > 0.1) {
+                        chat.current.x += (dx / dist) * config.chatSpeed;
+                        chat.current.y += (dy / dist) * config.chatSpeed;
+                    }
 
-                if (dist < 0.4) {
-                    setGameState('JUMPSCARE');
-                    setShowJumpscare(true);
-                    if (document.pointerLockElement) document.exitPointerLock();
-                    setTimeout(() => {
-                        setShowJumpscare(false);
-                        setGameState('GAMEOVER');
-                    }, 2000);
+                    if (dist < 0.4) {
+                        setGameState('JUMPSCARE');
+                        setShowJumpscare(true);
+                        if (document.pointerLockElement) document.exitPointerLock();
+                        setTimeout(() => {
+                            setShowJumpscare(false);
+                            setGameState('GAMEOVER');
+                        }, 2000);
+                    }
+                } else {
+                    setSpawnGracePeriod(prev => prev - 1);
                 }
 
                 setTasks(prev => prev.map(t => {
@@ -567,6 +658,12 @@
                 if (flashlightOn && battery > 0) {
                     setBattery(prev => Math.max(0, prev - config.batteryDrain));
                 }
+
+                // Update static intensity based on chat distance
+                const cdx = player.current.x - chat.current.x;
+                const cdy = player.current.y - chat.current.y;
+                const cdist = Math.sqrt(cdx * cdx + cdy * cdy);
+                setStaticIntensity(Math.max(0, 1 - cdist / 6));
 
                 if (tasks.every(t => t.completed)) {
                     setGameState('LEVEL_COMPLETE');
@@ -664,27 +761,75 @@
                             ctx.fillRect(screenX - spriteWidth / 2, height / 2 - spriteHeight / 2, spriteWidth, spriteHeight);
                             
                             if (isChat) {
-                                ctx.fillStyle = `rgba(255, 0, 0, ${0.4 * Math.random()})`;
-                                ctx.fillRect(screenX - spriteWidth/2 + Math.random()*10, height/2 - spriteHeight/2 + Math.random()*10, spriteWidth, spriteHeight);
-                                
-                                const eyeCount = 5;
-                                for (let j = 0; j < eyeCount; j++) {
-                                    ctx.fillStyle = Math.random() > 0.5 ? 'white' : 'red';
-                                    const eyeX = screenX - spriteWidth/3 + (j * spriteWidth/6) + Math.sin(Date.now()/100 + j)*5;
-                                    const eyeY = height/2 - spriteHeight/4 + Math.cos(Date.now()/100 + j)*10;
-                                    ctx.fillRect(eyeX, eyeY, spriteWidth/12, spriteHeight/12);
-                                }
+                                const xPos = screenX - spriteWidth / 2;
+                                const yPos = height / 2 - spriteHeight / 2;
 
-                                ctx.strokeStyle = '#ff0000';
-                                ctx.lineWidth = 2;
-                                for (let j = 0; j < 8; j++) {
-                                    ctx.beginPath();
-                                    ctx.moveTo(screenX, height/2);
-                                    ctx.lineTo(screenX + (Math.random()-0.5)*spriteWidth*1.5, height/2 + (Math.random()-0.5)*spriteHeight*1.5);
-                                    ctx.stroke();
+                                // Shifting static body
+                                ctx.fillStyle = `rgba(${150 + Math.random() * 105}, 0, 0, ${0.4 + Math.random() * 0.4})`;
+                                ctx.fillRect(xPos, yPos, spriteWidth, spriteHeight);
+                                
+                                // Glitchy static particles
+                                for(let j=0; j<15; j++) {
+                                    ctx.fillStyle = Math.random() > 0.5 ? '#ff0000' : '#000000';
+                                    ctx.fillRect(
+                                        xPos + Math.random() * spriteWidth,
+                                        yPos + Math.random() * spriteHeight,
+                                        Math.random() * 4,
+                                        Math.random() * 4
+                                    );
                                 }
                             }
                             ctx.globalAlpha = 1;
+                        }
+
+                        // Eyes and whispers are visible even in dark if close enough
+                        if (isChat) {
+                            const time = Date.now() / 1000;
+                            const xPos = screenX - spriteWidth / 2;
+                            const yPos = height / 2 - spriteHeight / 2;
+                            const glowAlpha = Math.max(0, 1 - dist / 12);
+
+                            if (glowAlpha > 0) {
+                                ctx.save();
+                                ctx.globalAlpha = glowAlpha;
+                                
+                                // Many random eyes
+                                const eyeCount = 8 + Math.floor(Math.sin(time * 2) * 4 + 4);
+                                for (let j = 0; j < eyeCount; j++) {
+                                    const offsetX = (Math.sin(time * (j + 1)) * 0.4) * spriteWidth;
+                                    const offsetY = (Math.cos(time * (j + 1.5)) * 0.4) * spriteHeight;
+                                    const eyeSize = (0.05 + Math.random() * 0.1) * spriteWidth;
+                                    
+                                    // Pulsing glow
+                                    const pulse = 0.8 + Math.sin(time * 5 + j) * 0.2;
+                                    
+                                    ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
+                                    ctx.beginPath();
+                                    ctx.ellipse(screenX + offsetX, height/2 + offsetY, eyeSize, eyeSize * 0.6, 0, 0, Math.PI * 2);
+                                    ctx.fill();
+                                    
+                                    ctx.fillStyle = `rgba(255, 0, 0, ${pulse})`;
+                                    ctx.beginPath();
+                                    ctx.arc(screenX + offsetX + (Math.random()-0.5)*2, height/2 + offsetY + (Math.random()-0.5)*2, eyeSize * 0.4, 0, Math.PI * 2);
+                                    ctx.fill();
+                                }
+
+                                // Floating whispers
+                                if (dist < 4) {
+                                    const whispers = ["WATCHING", "HUNGRY", "JOE", "VOID", "DIE", "STAY"];
+                                    ctx.font = 'bold 12px monospace';
+                                    ctx.fillStyle = 'rgba(255, 0, 0, 1)';
+                                    const whisper = whispers[Math.floor(time % whispers.length)];
+                                    ctx.fillText(whisper, xPos + Math.sin(time*10)*10, yPos - 10 + Math.cos(time*5)*5);
+                                }
+
+                                // Occasional big red flash (only if flashlight is on for extra effect)
+                                if (Math.random() > 0.98 && (battery > 0 && flashlightOn)) {
+                                    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                                    ctx.fillRect(xPos - spriteWidth/2, yPos - spriteHeight/2, spriteWidth * 2, spriteHeight * 2);
+                                }
+                                ctx.restore();
+                            }
                         }
                     }
                 };
@@ -694,7 +839,21 @@
                 });
                 renderSprite(chat.current.x, chat.current.y, '#ef4444', 0.8, true);
 
-            }, [tasks, battery, worldMap, flashlightOn, canvasSize]);
+                // Draw static noise as overlay
+                if (staticIntensity > 0.1) {
+                    ctx.save();
+                    ctx.globalAlpha = staticIntensity * 0.4;
+                    for (let i = 0; i < 500; i++) {
+                        const x = Math.random() * width;
+                        const y = Math.random() * height;
+                        const s = Math.random() * 2;
+                        ctx.fillStyle = Math.random() > 0.5 ? 'white' : 'black';
+                        ctx.fillRect(x, y, s, s);
+                    }
+                    ctx.restore();
+                }
+
+            }, [tasks, battery, worldMap, flashlightOn, canvasSize, staticIntensity]);
 
             useEffect(() => {
                 window.addEventListener('keydown', handleKeyDown);
@@ -762,6 +921,37 @@
                                 <AlertTriangle className="w-5 h-5 text-red-500 animate-bounce" />
                                 <span className="text-red-500 font-mono text-sm uppercase">Chat is watching</span>
                             </div>
+                            
+                            {/* Chat Messages UI */}
+                            <motion.div 
+                                animate={glitchActive ? { x: [0, -2, 2, 0], filter: ['hue-rotate(0deg)', 'hue-rotate(90deg)', 'hue-rotate(0deg)'] } : {}}
+                                className="w-64 max-h-64 bg-black/80 rounded-lg border border-red-900/30 flex flex-col overflow-hidden backdrop-blur-md shadow-[0_0_15px_rgba(255,0,0,0.1)]"
+                            >
+                                <div className="bg-red-950/40 px-3 py-1 border-b border-red-900/30 flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-red-500 uppercase tracking-tighter animate-pulse">LIVE CHAT</span>
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse" />
+                                        <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-tighter">{viewers} VIEWERS</span>
+                                    </div>
+                                </div>
+                                <div className="p-2 space-y-2 overflow-y-auto font-mono text-[11px] scrollbar-hide">
+                                    {chatMessages.map(msg => (
+                                        <motion.div 
+                                            key={msg.id} 
+                                            initial={{ opacity: 0, x: 20 }} 
+                                            animate={{ opacity: 1, x: 0 }}
+                                            className={`flex flex-col border-l-2 ${msg.type === 'system' ? 'border-zinc-800 pl-2' : 'border-red-900/50 pl-2'} ${msg.type === 'glitch' ? 'animate-pulse' : ''}`}
+                                        >
+                                            <span className={`font-black text-[9px] uppercase tracking-widest ${msg.type === 'system' ? 'text-zinc-500' : 'text-red-500'}`}>
+                                                {msg.user}
+                                            </span>
+                                            <span className={`${msg.type === 'glitch' ? 'text-red-600 font-black italic' : 'text-zinc-300'}`}>
+                                                {msg.text}
+                                            </span>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            </motion.div>
                         </div>
                     </div>
 
@@ -805,6 +995,17 @@
                                     <MousePointer2 className="w-6 h-6 text-red-500" />
                                     <span className="text-sm font-bold uppercase tracking-widest">Click to Look & Move</span>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Glitch Overlay */}
+                        {glitchActive && (
+                            <div className="absolute inset-0 z-50 pointer-events-none bg-red-900/20 mix-blend-overlay flex items-center justify-center">
+                                <div className="w-full h-1 bg-red-600/50 absolute top-1/4 animate-pulse" />
+                                <div className="w-full h-1 bg-red-600/50 absolute top-3/4 animate-pulse" />
+                                {Math.random() > 0.5 && (
+                                    <div className="text-red-600 font-mono text-9xl opacity-20 select-none">WATCHING</div>
+                                )}
                             </div>
                         )}
 
@@ -852,7 +1053,7 @@
                                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                                     className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center text-center p-8 z-30"
                                 >
-                                    <h2 className="text-6xl font-black mb-4 text-emerald-500 uppercase italic">Ritual Complete</h2>
+                                    <h2 className="text-4xl md:text-5xl font-black mb-4 text-emerald-500 uppercase italic">Ritual Complete</h2>
                                     <p className="text-zinc-400 mb-8">Level {level} finished. The tether holds... for now.</p>
                                     <button onClick={nextLevel} className="px-12 py-6 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full transition-all flex items-center gap-3 text-xl"><Play className="w-6 h-6" />ENTER LEVEL {level + 1}</button>
                                 </motion.div>
@@ -905,7 +1106,7 @@
                                             skewX: [0, 20, -20, 0]
                                         }}
                                         transition={{ repeat: Infinity, duration: 0.08 }}
-                                        className="mt-16 text-6xl md:text-8xl font-black text-white uppercase tracking-tighter italic drop-shadow-[0_0_20px_rgba(255,0,0,1)]"
+                                        className="mt-16 text-2xl md:text-4xl font-black text-white uppercase tracking-tighter italic drop-shadow-[0_0_20px_rgba(255,0,0,1)]"
                                     >
                                         YOU ARE CONSUMED
                                     </motion.div>
@@ -917,7 +1118,7 @@
                                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                                     className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center text-center p-8 z-30"
                                 >
-                                    <h2 className="text-5xl font-black mb-4 text-red-600 uppercase">Shift Terminated</h2>
+                                    <h2 className="text-2xl md:text-3xl font-black mb-4 text-red-600 uppercase">Shift Terminated</h2>
                                     <p className="text-zinc-400 mb-8">You are now part of the stream. Forever.</p>
                                     <button onClick={() => startGame(1)} className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-full transition-all flex items-center gap-2"><RefreshCw className="w-5 h-5" />RETRY RITUAL</button>
                                 </motion.div>
