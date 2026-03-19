@@ -13,8 +13,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
     <!-- Framer Motion -->
     <script src="https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.js"></script>
-    <!-- Lucide Icons (React version only) -->
-    <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.284.0/dist/umd/lucide-react.min.js"></script>
     
     <style>
         body { margin: 0; background: black; overflow: hidden; }
@@ -74,17 +72,14 @@
         
         // --- Global Variable Checks ---
         const Motion = window.Motion || window.FramerMotion;
-        const Lucide = window.LucideReact || window.lucideReact || window.Lucide;
 
         console.log("Joe the Game: Motion found:", !!Motion);
-        console.log("Joe the Game: Lucide found:", !!Lucide);
         console.log("Joe the Game: React found:", !!window.React);
         console.log("Joe the Game: ReactDOM found:", !!window.ReactDOM);
 
-        if (!Motion || !Lucide || !window.React || !window.ReactDOM) {
+        if (!Motion || !window.React || !window.ReactDOM) {
             console.error("Joe the Game: Required libraries not found!", {
                 Motion: !!Motion,
-                Lucide: !!Lucide,
                 React: !!window.React,
                 ReactDOM: !!window.ReactDOM
             });
@@ -93,7 +88,7 @@
                     <h1 style="color: red;">Error: Libraries Failed to Load</h1>
                     <p>Please check your internet connection or try refreshing the page.</p>
                     <p style="font-size: 12px; color: #666;">
-                        Missing: ${!Motion ? 'Framer Motion, ' : ''} ${!Lucide ? 'Lucide Icons, ' : ''} 
+                        Missing: ${!Motion ? 'Framer Motion, ' : ''} 
                         ${!window.React ? 'React, ' : ''} ${!window.ReactDOM ? 'ReactDOM' : ''}
                     </p>
                 </div>
@@ -115,51 +110,176 @@
                     throw new Error("Framer Motion components (motion or AnimatePresence) not found in the loaded library.");
                 }
                 
-                // Check if Lucide icons exist, if not provide a fallback
-                const getIcon = (name) => {
-                    // Try different locations for the icon component
-                    const icon = (Lucide && Lucide[name]) || 
-                                 (Lucide && Lucide.icons && Lucide.icons[name]) ||
-                                 (window.lucideReact && window.lucideReact[name]);
-                    
-                    // Ensure it's a valid React component (function or object with $$typeof)
-                    if (typeof icon === 'function' || (icon && icon.$$typeof)) return icon;
-                    
-                    if (icon) {
-                        console.warn(`Joe the Game: Icon ${name} found but is not a component (type: ${typeof icon}). Using fallback.`);
-                    } else {
-                        console.warn(`Joe the Game: Icon ${name} not found. Available keys:`, Object.keys(Lucide || {}).slice(0, 10));
-                    }
-                    
-                    // Simple SVG fallback if the component is missing
-                    return (props) => (
-                        <svg 
-                            width={props.size || 24} 
-                            height={props.size || 24} 
-                            viewBox="0 0 24 24" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="2" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                            className={props.className}
-                        >
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                            <text x="5" y="15" fontSize="8" fill="currentColor">?</text>
-                        </svg>
-                    );
-                };
+                // Hardcoded SVG components for critical icons to ensure they always work
+                const Skull = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/><path d="m16 20-2.5-1.45"/><path d="m8 20 2.5-1.45"/><path d="m15 17 1-2.25"/><path d="m9 17-1-2.25"/>
+                    </svg>
+                );
 
-                const Flashlight = getIcon('Flashlight');
-                const Battery = getIcon('Battery');
-                const ClipboardList = getIcon('ClipboardList');
-                const AlertTriangle = getIcon('AlertTriangle');
-                const Play = getIcon('Play');
-                const RefreshCw = getIcon('RefreshCw');
-                const Eye = getIcon('Eye');
-                const BookOpen = getIcon('BookOpen');
-                const Skull = getIcon('Skull');
-                const MousePointer2 = getIcon('MousePointer2');
+                const Eye = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                );
+
+                const Flashlight = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <path d="M18.66 10.5a2 2 0 1 1-2.83 2.83l-2-2a2 2 0 0 1 0-2.83l1.17-1.17a2 2 0 1 1 2.83 2.83L16.66 11.5"/><path d="m6 18 2.23-2.23"/><path d="M8 14l-3-3"/><path d="m14 8 3-3"/><path d="m3 21 3-3"/><path d="M9.5 14.5 14 10"/>
+                    </svg>
+                );
+
+                const Battery = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <rect width="16" height="10" x="2" y="7" rx="2" ry="2"/><line x1="22" x2="22" y1="11" y2="13"/>
+                    </svg>
+                );
+
+                const AlertTriangle = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/>
+                    </svg>
+                );
+
+                const MousePointer2 = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/><path d="M13 13l6 6"/>
+                    </svg>
+                );
+
+                const Play = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                );
+
+                const ClipboardList = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/><path d="M9 8h6"/>
+                    </svg>
+                );
+
+                const RefreshCw = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>
+                    </svg>
+                );
+
+                const BookOpen = (props) => (
+                    <svg 
+                        width={props.size || 24} 
+                        height={props.size || 24} 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={props.className}
+                        style={props.style}
+                    >
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                );
 
             // --- Constants ---
         const FOV = Math.PI / 3; 
@@ -246,9 +366,9 @@
                 map: LEVEL_2_MAP,
                 tasks: [
                     { id: '2-1', label: 'Mop the void leak', gridX: 15, gridY: 15, completed: false },
-                    { id: '2-2', label: 'Feed the shelf-eyes', gridX: 20, gridY: 5, completed: false },
-                    { id: '2-3', label: 'Check the back door', gridX: 6, gridY: 11, completed: false },
-                    { id: '2-4', label: 'Sanitize the counter', gridX: 12, gridY: 12, completed: false },
+                    { id: '2-2', label: 'Feed the shelf-eyes', gridX: 20, gridY: 4, completed: false },
+                    { id: '2-3', label: 'Check the back door', gridX: 5, gridY: 11, completed: false },
+                    { id: '2-4', label: 'Sanitize the counter', gridX: 11, gridY: 12, completed: false },
                 ]
             },
             3: {
@@ -646,13 +766,30 @@
                     </div>
 
                     <div ref={containerRef} className="relative w-full h-screen overflow-hidden">
-                        <canvas 
-                            ref={canvasRef}
-                            width={canvasSize.width}
-                            height={canvasSize.height}
-                            className="bg-zinc-950 cursor-crosshair block"
-                            onClick={gameState === 'PLAYING' ? requestLock : undefined}
-                        />
+                        <motion.div
+                            animate={gameState === 'JUMPSCARE' ? {
+                                x: [0, -5, 5, -5, 5, 0],
+                                y: [0, 5, -5, 5, -5, 0],
+                            } : {
+                                x: 0,
+                                y: 0,
+                            }}
+                            transition={gameState === 'JUMPSCARE' ? { 
+                                repeat: Infinity, 
+                                duration: 0.2 
+                            } : { 
+                                duration: 0.5 
+                            }}
+                            className="w-full h-full"
+                        >
+                            <canvas 
+                                ref={canvasRef}
+                                width={canvasSize.width}
+                                height={canvasSize.height}
+                                className="bg-zinc-950 cursor-crosshair block w-full h-full"
+                                onClick={gameState === 'PLAYING' ? requestLock : undefined}
+                            />
+                        </motion.div>
 
                         {gameState === 'PLAYING' && interactionPrompt && (
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-8 pointer-events-none">
@@ -723,14 +860,55 @@
 
                             {gameState === 'JUMPSCARE' && showJumpscare && (
                                 <motion.div 
-                                    initial={{ scale: 0.1, opacity: 0, rotate: 45 }} animate={{ scale: 3, opacity: 1, rotate: 0 }}
-                                    className="absolute inset-0 z-50 flex items-center justify-center bg-red-950"
+                                    initial={{ scale: 0.1, opacity: 0, rotate: 45 }} 
+                                    animate={{ 
+                                        scale: [1, 4, 3.8, 4.5], 
+                                        opacity: [0, 1, 0.9, 1], 
+                                        rotate: [45, 0, -5, 5, 0],
+                                        x: [0, -10, 10, -5, 5, 0],
+                                        y: [0, 10, -10, 5, -5, 0],
+                                        backgroundColor: ['#450a0a', '#600a0a', '#450a0a', '#000000']
+                                    }}
+                                    transition={{ duration: 0.5, times: [0, 0.3, 0.7, 1], ease: "easeOut" }}
+                                    className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden"
                                 >
-                                    <div className="relative">
-                                        <Skull className="w-64 h-64 text-white" />
-                                        <div className="absolute inset-0 flex items-center justify-center"><Eye className="w-32 h-32 text-red-600 animate-ping" /></div>
+                                    <div className="relative scale-150">
+                                        <Skull className="w-64 h-64 text-white drop-shadow-[0_0_50px_rgba(255,0,0,0.8)]" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <Eye className="w-32 h-32 text-red-600 animate-ping" />
+                                        </div>
+                                        {/* Noise overlay */}
+                                        <motion.div 
+                                            animate={{ opacity: [0.1, 0.4, 0.2, 0.5] }}
+                                            transition={{ repeat: Infinity, duration: 0.05 }}
+                                            className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-30"
+                                            style={{
+                                                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
+                                            }}
+                                        />
+                                        {/* Glitch lines */}
+                                        <motion.div 
+                                            animate={{ opacity: [0, 1, 0], x: [-200, 200] }}
+                                            transition={{ repeat: Infinity, duration: 0.05 }}
+                                            className="absolute top-1/4 left-0 w-full h-2 bg-white/40"
+                                        />
+                                        <motion.div 
+                                            animate={{ opacity: [0, 1, 0], x: [200, -200] }}
+                                            transition={{ repeat: Infinity, duration: 0.07 }}
+                                            className="absolute top-3/4 left-0 w-full h-4 bg-red-500/40"
+                                        />
                                     </div>
-                                    <div className="absolute bottom-10 text-4xl font-black text-white uppercase tracking-widest animate-pulse">CHAT HAS CONSUMED YOU</div>
+                                    <motion.div 
+                                        animate={{ 
+                                            scale: [1, 1.3, 1], 
+                                            opacity: [1, 0.7, 1],
+                                            skewX: [0, 20, -20, 0]
+                                        }}
+                                        transition={{ repeat: Infinity, duration: 0.08 }}
+                                        className="mt-16 text-6xl md:text-8xl font-black text-white uppercase tracking-tighter italic drop-shadow-[0_0_20px_rgba(255,0,0,1)]"
+                                    >
+                                        YOU ARE CONSUMED
+                                    </motion.div>
                                 </motion.div>
                             )}
 
