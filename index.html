@@ -497,6 +497,51 @@
         };
 
                 console.log("Joe the Game: Defining App component...");
+                const MainMenu = ({ onStart, onLore, onTutorial }) => (
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-zinc-950 flex flex-col items-center justify-center text-center p-8 z-30"
+                    >
+                        <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/dark/1920/1080?blur=10')] bg-cover bg-center opacity-20" />
+                        <div className="relative z-10 flex flex-col items-center">
+                            <motion.h1 
+                                className="text-6xl md:text-8xl font-black mb-2 tracking-tighter text-white uppercase"
+                                animate={{ letterSpacing: ['-0.05em', '0em', '-0.05em'] }}
+                                transition={{ duration: 4, repeat: Infinity }}
+                            >
+                                JOE THE GAME
+                            </motion.h1>
+                            <div className="h-1 w-32 bg-red-600 mb-8" />
+                            <p className="text-zinc-400 max-w-md mb-12 text-lg italic">"The night shift never ends. The viewers never leave."</p>
+                            
+                            <div className="flex flex-col gap-4 w-64">
+                                <button 
+                                    onClick={onStart} 
+                                    className="group relative px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-sm transition-all flex items-center justify-center gap-3 text-xl uppercase tracking-widest"
+                                >
+                                    <Play className="w-6 h-6" />
+                                    PLAY
+                                    <div className="absolute inset-0 border border-white/20 group-hover:border-white/50 transition-all" />
+                                </button>
+                                <button 
+                                    onClick={onTutorial} 
+                                    className="px-8 py-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold rounded-sm transition-all flex items-center justify-center gap-2 uppercase tracking-widest border border-zinc-700"
+                                >
+                                    <BookOpen className="w-5 h-5" />
+                                    TUTORIAL
+                                </button>
+                                <button 
+                                    onClick={onLore} 
+                                    className="px-8 py-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold rounded-sm transition-all flex items-center justify-center gap-2 uppercase tracking-widest border border-zinc-700"
+                                >
+                                    <BookOpen className="w-5 h-5" />
+                                    LORE
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                );
+
                 function App() {
             const [gameState, setGameState] = useState('START');
             const [level, setLevel] = useState(1);
@@ -509,7 +554,11 @@
             const [loreIndex, setLoreIndex] = useState(0);
             const [isLocked, setIsLocked] = useState(false);
             const [spawnGracePeriod, setSpawnGracePeriod] = useState(0);
-            const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+            const [canvasSize, setCanvasSize] = useState({ 
+                width: window.innerWidth, 
+                height: window.innerHeight,
+                dpr: window.devicePixelRatio || 1
+            });
             const [chatMessages, setChatMessages] = useState([
                 { id: 1, user: 'System', text: 'Stream Started. 1 Viewer watching.', type: 'system' }
             ]);
@@ -528,13 +577,18 @@
             const canvasRef = useRef(null);
             const containerRef = useRef(null);
             const player = useRef({ x: 12, y: 12, dir: 0 });
+            const targetDir = useRef(0);
             const chat = useRef({ x: 2, y: 2 });
             const keysPressed = useRef({});
             const requestRef = useRef(null);
 
             useEffect(() => {
                 const handleResize = () => {
-                    setCanvasSize({ width: window.innerWidth, height: window.innerHeight });
+                    setCanvasSize({ 
+                        width: window.innerWidth, 
+                        height: window.innerHeight,
+                        dpr: window.devicePixelRatio || 1
+                    });
                 };
                 window.addEventListener('resize', handleResize);
                 return () => window.removeEventListener('resize', handleResize);
@@ -612,7 +666,7 @@
 
             const handleMouseMove = useCallback((e) => {
                 if (document.pointerLockElement === canvasRef.current) {
-                    player.current.dir += e.movementX * MOUSE_SENSITIVITY;
+                    targetDir.current += e.movementX * MOUSE_SENSITIVITY;
                 }
             }, []);
 
@@ -758,6 +812,9 @@
                     player.current.y = nextY;
                 }
 
+                // Camera lerp
+                player.current.dir += (targetDir.current - player.current.dir) * 0.15;
+
                 const checkDist = 1.2;
                 const lookX = Math.floor(player.current.x + Math.cos(player.current.dir) * checkDist);
                 const lookY = Math.floor(player.current.y + Math.sin(player.current.dir) * checkDist);
@@ -873,8 +930,10 @@
             }, [gameState, tasks, worldMap, flashlightOn, battery, level]);
 
             const draw = useCallback((ctx, currentFOV = FOV) => {
-                const { width, height } = canvasSize;
+                const { width, height, dpr } = canvasSize;
                 ctx.clearRect(0, 0, width, height);
+                ctx.save();
+                ctx.scale(dpr, dpr);
 
                 const numRays = width;
                 const stepAngle = currentFOV / numRays;
@@ -1182,7 +1241,7 @@
                         ctx.translate(shakeX, shakeY);
                     }
                 }
-
+                ctx.restore();
             }, [tasks, battery, worldMap, flashlightOn, canvasSize, staticIntensity, bob]);
 
             useEffect(() => {
@@ -1218,24 +1277,25 @@
                 <div className="min-h-screen bg-black text-white font-sans flex flex-col items-center justify-center overflow-hidden">
                     <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-10">
                         <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2 bg-zinc-900/80 p-2 rounded-lg border border-zinc-800">
-                                <div className="flex items-center gap-2 mr-4">
-                                    <span className="text-xs font-black text-red-500">LVL {level}</span>
+                            <div className="flex items-center gap-3 bg-zinc-950/60 p-3 rounded-sm border border-zinc-800/50 backdrop-blur-sm">
+                                <div className="flex items-center gap-2 mr-2">
+                                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Shift</span>
+                                    <span className="text-xs font-bold text-white">{level}</span>
                                 </div>
-                                <Flashlight className={`w-5 h-5 ${flashlightOn && battery > 0 ? 'text-yellow-400' : 'text-zinc-600'}`} />
-                                <Battery className={`w-5 h-5 ${battery < 20 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`} />
-                                <div className="w-32 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                                    <motion.div 
-                                        className="h-full bg-emerald-500"
-                                        initial={{ width: '100%' }}
-                                        animate={{ width: `${battery}%` }}
-                                        transition={{ duration: 0.1 }}
-                                    />
+                                <div className="flex items-center gap-2">
+                                    <Flashlight className={`w-4 h-4 ${flashlightOn && battery > 0 ? 'text-yellow-400' : 'text-zinc-600'}`} />
+                                    <div className="w-24 h-1.5 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
+                                        <motion.div 
+                                            className={`h-full ${battery < 20 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                                            animate={{ width: `${battery}%` }}
+                                            transition={{ duration: 0.1 }}
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 bg-zinc-900/80 p-2 rounded-lg border border-zinc-800">
-                                <span className="text-[10px] font-bold text-zinc-500 uppercase">Stamina</span>
-                                <div className="w-32 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="flex items-center gap-3 bg-zinc-950/60 p-3 rounded-sm border border-zinc-800/50 backdrop-blur-sm">
+                                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Stamina</span>
+                                <div className="w-24 h-1.5 bg-zinc-900 rounded-sm overflow-hidden border border-zinc-800">
                                     <motion.div 
                                         className="h-full bg-blue-500"
                                         animate={{ width: `${stamina}%` }}
@@ -1243,15 +1303,15 @@
                                     />
                                 </div>
                             </div>
-                            <div className="bg-zinc-900/80 p-3 rounded-lg border border-zinc-800">
-                                <div className="flex items-center gap-2 mb-2 text-zinc-400 text-xs uppercase tracking-widest font-bold">
+                            <div className="bg-zinc-950/60 p-4 rounded-sm border border-zinc-800/50 backdrop-blur-sm">
+                                <div className="flex items-center gap-2 mb-3 text-zinc-400 text-[10px] uppercase tracking-widest font-black">
                                     <ClipboardList className="w-4 h-4" />
                                     Rituals
                                 </div>
-                                <ul className="space-y-1">
+                                <ul className="space-y-2">
                                     {tasks.map(t => (
-                                        <li key={t.id} className={`text-sm flex items-center gap-2 ${t.completed ? 'text-zinc-600 line-through' : 'text-zinc-200'}`}>
-                                            <div className={`w-2 h-2 rounded-full ${t.completed ? 'bg-zinc-600' : 'bg-yellow-500 animate-pulse'}`} />
+                                        <li key={t.id} className={`text-xs flex items-center gap-3 ${t.completed ? 'text-zinc-700 line-through' : 'text-zinc-300'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${t.completed ? 'bg-zinc-700' : 'bg-yellow-500 animate-pulse'}`} />
                                             {t.label}
                                         </li>
                                     ))}
@@ -1316,8 +1376,8 @@
                         >
                             <canvas 
                                 ref={canvasRef}
-                                width={canvasSize.width}
-                                height={canvasSize.height}
+                                width={canvasSize.width * canvasSize.dpr}
+                                height={canvasSize.height * canvasSize.dpr}
                                 className="bg-zinc-950 cursor-crosshair block w-full h-full"
                                 onClick={gameState === 'PLAYING' ? requestLock : undefined}
                             />
@@ -1427,21 +1487,25 @@
 
                         <AnimatePresence>
                             {gameState === 'START' && (
+                                <MainMenu onStart={() => startGame(1)} onLore={() => setGameState('LORE')} onTutorial={() => setGameState('TUTORIAL')} />
+                            )}
+
+                            {gameState === 'TUTORIAL' && (
                                 <motion.div 
-                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                    className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center text-center p-8 z-30"
+                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                    className="absolute inset-0 bg-zinc-950 flex flex-col items-center justify-center text-center p-12 z-30"
                                 >
-                                    <motion.h1 
-                                        className="text-7xl md:text-9xl font-black mb-4 tracking-tighter text-red-600 uppercase italic"
-                                        animate={{ scale: [1, 1.02, 1], rotate: [-1, 1, -1] }}
-                                        transition={{ repeat: Infinity, duration: 4 }}
-                                    >
-                                        Joe the Game
-                                    </motion.h1>
-                                    <p className="text-zinc-500 max-w-md mb-8 italic">"The night shift never ends. The viewers never leave."</p>
-                                    <div className="flex gap-4">
-                                        <button onClick={() => setGameState('LORE')} className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-full transition-all flex items-center gap-2"><BookOpen className="w-5 h-5" />READ LORE</button>
-                                        <button onClick={() => startGame(1)} className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full transition-all flex items-center gap-2"><Play className="w-5 h-5" />START SHIFT</button>
+                                    <div className="max-w-xl">
+                                        <h2 className="text-4xl font-black text-white mb-8 uppercase tracking-widest">Tutorial</h2>
+                                        <ul className="text-left text-zinc-300 space-y-4 mb-12 font-mono text-sm">
+                                            <li><span className="text-emerald-500 font-bold">WASD</span> to move.</li>
+                                            <li><span className="text-emerald-500 font-bold">Mouse</span> to look around.</li>
+                                            <li><span className="text-emerald-500 font-bold">E</span> to interact with objects and perform rituals.</li>
+                                            <li><span className="text-emerald-500 font-bold">F</span> to toggle your flashlight.</li>
+                                            <li><span className="text-emerald-500 font-bold">M</span> to open the map.</li>
+                                            <li><span className="text-emerald-500 font-bold">Shift</span> to sprint (consumes stamina).</li>
+                                        </ul>
+                                        <button onClick={() => setGameState('START')} className="px-8 py-4 bg-zinc-800 text-white font-bold rounded-sm uppercase tracking-widest">BACK</button>
                                     </div>
                                 </motion.div>
                             )}
