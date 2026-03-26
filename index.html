@@ -497,7 +497,7 @@
         };
 
                 console.log("Joe the Game: Defining App component...");
-                const MainMenu = ({ onStart, onLore, onTutorial }) => (
+                const MainMenu = ({ onStart, onLore, onTutorial, difficulty, setDifficulty }) => (
                     <motion.div 
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="absolute inset-0 bg-zinc-950 flex flex-col items-center justify-center text-center p-8 z-30"
@@ -515,6 +515,17 @@
                             <p className="text-zinc-400 max-w-md mb-12 text-lg italic">"The night shift never ends. The viewers never leave."</p>
                             
                             <div className="flex flex-col gap-4 w-64">
+                                <div className="flex gap-2">
+                                    {['EASY', 'NORMAL', 'HARD'].map(d => (
+                                        <button 
+                                            key={d}
+                                            onClick={() => setDifficulty(d)}
+                                            className={`flex-1 py-2 text-xs font-bold rounded-sm border ${difficulty === d ? 'bg-zinc-700 border-zinc-500 text-white' : 'bg-zinc-900 border-zinc-700 text-zinc-500'}`}
+                                        >
+                                            {d}
+                                        </button>
+                                    ))}
+                                </div>
                                 <button 
                                     onClick={onStart} 
                                     className="group relative px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-sm transition-all flex items-center justify-center gap-3 text-xl uppercase tracking-widest"
@@ -543,6 +554,7 @@
                 );
 
                 function App() {
+            const [difficulty, setDifficulty] = useState('NORMAL');
             const [gameState, setGameState] = useState('START');
             const [level, setLevel] = useState(1);
             const [battery, setBattery] = useState(100);
@@ -578,7 +590,7 @@
             const containerRef = useRef(null);
             const player = useRef({ x: 12, y: 12, dir: 0 });
             const targetDir = useRef(0);
-            const chat = useRef({ x: 2, y: 2 });
+            const chat = useRef({ x: 1, y: 1 });
             const keysPressed = useRef({});
             const requestRef = useRef(null);
 
@@ -606,10 +618,11 @@
                 return { x, y };
             };
 
-            const startGame = (startLevel = 1) => {
+            const startGame = (startLevel = 1, diff = 'NORMAL') => {
                 const config = LEVELS[startLevel];
                 setGameState('PLAYING');
                 setLevel(startLevel);
+                setDifficulty(diff);
                 setBattery(100);
                 setFlashlightOn(true);
                 setShowMap(false);
@@ -621,7 +634,7 @@
                 const spawnY = config.spawn?.y || 12.5;
                 player.current = { x: spawnX, y: spawnY, dir: 0 };
                 chat.current = getRandomWalkablePosition(newMap, spawnX, spawnY, 10);
-                setSpawnGracePeriod(180); // 3 seconds at ~60fps
+                setSpawnGracePeriod(60); // 1 second at ~60fps
                 setChatMessages([{ id: Date.now(), user: 'System', text: `Level ${startLevel} Ritual Initiated. Prepare yourself.`, type: 'system' }]);
             };
 
@@ -671,7 +684,11 @@
             }, []);
 
             const requestLock = () => {
-                canvasRef.current?.requestPointerLock();
+                try {
+                    canvasRef.current?.requestPointerLock();
+                } catch (e) {
+                    console.warn("Pointer lock request failed:", e);
+                }
             };
 
             useEffect(() => {
@@ -792,7 +809,10 @@
                             const ty = Math.floor(y + oy);
                             if (tx < 0 || tx >= MAP_SIZE || ty < 0 || ty >= MAP_SIZE) return false;
                             const tile = worldMap[ty][tx];
-                            if (tile !== 0 && tile !== 5) return false;
+                            if (tile !== 0 && tile !== 5) {
+                                console.log("Not walkable:", tx, ty, tile);
+                                return false;
+                            }
                         }
                     }
                     return true;
@@ -879,7 +899,11 @@
                         }, 2000);
                     }
                 } else {
-                    setSpawnGracePeriod(prev => prev - 1);
+                    setSpawnGracePeriod(prev => {
+                        const next = prev - 1;
+                        console.log("Grace period:", next);
+                        return next;
+                    });
                 }
 
                 let ritualInRange = null;
@@ -888,7 +912,7 @@
                         const tdx = player.current.x - (t.gridX + 0.5);
                         const tdy = player.current.y - (t.gridY + 0.5);
                         const tdist = Math.sqrt(tdx * tdx + tdy * tdy);
-                        if (tdist < 0.8) {
+                        if (tdist < 1.5) {
                             ritualInRange = t;
                         }
                     }
@@ -927,7 +951,7 @@
                     setGameState('LEVEL_COMPLETE');
                     if (document.pointerLockElement) document.exitPointerLock();
                 }
-            }, [gameState, tasks, worldMap, flashlightOn, battery, level]);
+            }, [gameState, tasks, worldMap, flashlightOn, battery, level, spawnGracePeriod]);
 
             const draw = useCallback((ctx, currentFOV = FOV) => {
                 const { width, height, dpr } = canvasSize;
@@ -1487,7 +1511,13 @@
 
                         <AnimatePresence>
                             {gameState === 'START' && (
-                                <MainMenu onStart={() => startGame(1)} onLore={() => setGameState('LORE')} onTutorial={() => setGameState('TUTORIAL')} />
+                                <MainMenu 
+                                    onStart={() => startGame(1, difficulty)} 
+                                    onLore={() => setGameState('LORE')} 
+                                    onTutorial={() => setGameState('TUTORIAL')} 
+                                    difficulty={difficulty}
+                                    setDifficulty={setDifficulty}
+                                />
                             )}
 
                             {gameState === 'TUTORIAL' && (
